@@ -8,7 +8,6 @@
     --paper:#fbeed6;
     --muted:#d6c3a0;
     --acorn:#d98a35;
-    --apple:#d8423a;
     --leaf:#7cb850;
     color-scheme:light;
   }
@@ -40,7 +39,7 @@
     max-width:calc(100vw - 32px);text-align:center;z-index:5}
   #prompt kbd{display:inline-block;background:var(--paper);color:var(--panel-solid);border-radius:5px;padding:0 6px;
     font:800 13px/20px Nunito,system-ui,sans-serif;margin-right:4px;box-shadow:0 2px 0 #a8916b}
-  #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);
+  #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 108px);transform:translateX(-50%);
     font-family:Grandstander,"Trebuchet MS",sans-serif;font-weight:900;font-size:22px;text-align:center;
     color:#fff;text-shadow:0 2px 0 #5a3a1a,0 0 14px rgba(0,0,0,.35);pointer-events:none;transition:opacity .4s;z-index:5;
     max-width:calc(100vw - 32px)}
@@ -107,9 +106,13 @@
 <div id="labels"></div>
 
 <div class="hud" id="hud">
-  <div class="chip" id="chipApples">
-    <svg viewBox="0 0 24 24"><path d="M12 7c-2-1.6-6-1.4-7 2.4-1 3.9 1.6 10 4.5 10.4 1.1.2 1.6-.5 2.5-.5s1.4.7 2.5.5C17.4 19.4 20 13.3 19 9.4 18 5.6 14 5.4 12 7z" fill="#d8423a"/><path d="M12 7c0-2 .6-3.4 2-4.4" stroke="#5a3a1a" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M13 5.2c1.6-1.6 3.8-1.4 4.6-.6-1 1.4-3 1.8-4.6.6z" fill="#7cb850"/></svg>
-    <span id="nApples">0/15</span><small>apples</small>
+  <div class="chip" id="chipSeason">
+    <svg viewBox="0 0 24 24"><path id="icoSeason" d="M5 19C5 10 10 5 20 4c-1 10-6 15-15 15zm0 0l8-8" fill="#d9822b" stroke="#5a3a1a" stroke-width="1.4" stroke-linejoin="round"/></svg>
+    <span id="nSeason">Autumn</span><small id="nSeasonSub">winter in 3 days</small>
+  </div>
+  <div class="chip" id="chipFood" hidden>
+    <svg viewBox="0 0 24 24"><path d="M6.5 10.5h11c0 5-2.5 9.5-5.5 11-3-1.5-5.5-6-5.5-11z" fill="#c9823b"/><path d="M5 10.8c0-3.3 3.1-5.3 7-5.3s7 2 7 5.3z" fill="#6e4524"/><circle cx="17.5" cy="15" r="3" fill="#2b2014"/></svg>
+    <span id="nFood">10/10</span><small>food</small>
   </div>
   <div class="chip" id="chipCheeks">
     <svg viewBox="0 0 24 24"><path d="M6.5 10.5h11c0 5-2.5 9.5-5.5 11-3-1.5-5.5-6-5.5-11z" fill="#c9823b"/><path d="M5 10.8c0-3.3 3.1-5.3 7-5.3s7 2 7 5.3z" fill="#6e4524"/><path d="M12 5.5V3" stroke="#6e4524" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -155,7 +158,7 @@
 <div id="start">
   <div class="card">
     <h1>Derv</h1>
-    <p>You're a squirrel and winter is coming. Stash 20 acorns in your hollow log, pick every apple from the big apple tree, and make friends with the locals.</p>
+    <p>You're a squirrel and winter is coming. Stash 20 acorns in your hollow log before the snow arrives, then live off your stash until spring. Make friends with the locals along the way.</p>
     <div class="keys key-only">
       <kbd>WASD / arrows</kbd><span>Scamper (hold Shift to sprint)</span>
       <kbd>Space</kbd><span>Jump, or leap off a tree</span>
@@ -230,7 +233,7 @@ scene.add(sun, sun.target);
 const mat = (color, extra = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.95, flatShading: true }, extra));
 const M = {
   bark: mat(0x6b4a2f), barkDark: mat(0x523621), leaf: mat(0x4f8f3a), leaf2: mat(0x3f7a33), pine: mat(0x2f6a3f),
-  rock: mat(0x8d8a82), apple: mat(0xd8423a, { roughness: 0.6 }), stem: mat(0x4a3018), leafy: mat(0x7cb850),
+  rock: mat(0x8d8a82), stem: mat(0x4a3018), leafy: mat(0x7cb850),
   acorn: mat(0xc9823b), cap: mat(0x6e4524), gold: mat(0xf2c14e, { roughness: .4, metalness: .3 }),
   water: new THREE.MeshStandardMaterial({ color: 0x5aa7c7, roughness: .2, metalness: .1, transparent: true, opacity: .85 }),
   bush: mat(0x5a9a3f), black: mat(0x1b120b, { roughness: .4 }), pink: mat(0xe89a8c),
@@ -238,7 +241,21 @@ const M = {
 
 // ---------- day and night (wall clock, so every player shares the same sky) ----------
 const DAY_LEN = 360;
-const dayPhase = () => (Date.now() / 1000 / DAY_LEN) % 1;
+// Everyone's clock is the wall clock plus an offset; sleeping through the night moves the offset forward,
+// and players in the same game adopt the furthest-ahead offset so they stay in step.
+const CLOCK = { off: 0 };
+const gameNow = () => Date.now() + CLOCK.off;
+const dayPhase = () => (gameNow() / 1000 / DAY_LEN) % 1;
+// A year is 6 days: autumn (days 1-3), winter (days 4-5), spring (day 6).
+const YEAR_DAYS = 6;
+function seasonInfo() {
+  const d = gameNow() / 1000 / DAY_LEN, day = ((Math.floor(d) % YEAR_DAYS) + YEAR_DAYS) % YEAR_DAYS, frac = d - Math.floor(d);
+  const ramp = clamp(frac * DAY_LEN / 30, 0, 1);
+  if (day <= 2) return { day, frac, name: 'Autumn', A: day === 0 ? ramp : 1, W: 0, untilNext: 3 - day - frac, next: 'winter' };
+  if (day <= 4) return { day, frac, name: 'Winter', A: 1, W: day === 3 ? ramp : 1, untilNext: 5 - day - frac, next: 'spring' };
+  return { day, frac, name: 'Spring', A: 1 - ramp, W: 1 - ramp, untilNext: 1 - frac, next: 'autumn' };
+}
+let SEASON = seasonInfo();
 function nightAmt(ph = dayPhase()) {
   if (ph < 0.04) return 1 - ph / 0.04;
   if (ph < 0.68) return 0;
@@ -259,25 +276,30 @@ let stars;
 }
 const RAIN_BLOCK = 150;
 const hash1 = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-function rainAmt() {
-  const t = Date.now() / 1000 / RAIN_BLOCK, b = Math.floor(t), f = t - b;
-  if (hash1(b) > 0.38) return 0;
+function rainAmt(th = 0.38) {
+  const t = gameNow() / 1000 / RAIN_BLOCK, b = Math.floor(t), f = t - b;
+  if (hash1(b) > th) return 0;
   return clamp(Math.min(f, 1 - f) * RAIN_BLOCK / 12, 0, 1) * (0.6 + 0.4 * hash1(b + 99));
 }
-let RAIN = 0, flash = 0;
+let RAIN = 0, SNOW = 0, flash = 0;
+const isStormy = () => RAIN > 0.3 || SNOW > 0.5;
 const isRaining = () => RAIN > 0.3;
-const skyRain = new THREE.Color(0x7c8791), skyRainNight = new THREE.Color(0x0f141d), tmpC = new THREE.Color();
+const skySnow = new THREE.Color(0xd3dbe2), skyRain = new THREE.Color(0x7c8791), skyRainNight = new THREE.Color(0x0f141d), tmpC = new THREE.Color();
 let lastN = -1, lastR = -1;
 function updateSky() {
   const N = nightAmt();
-  RAIN = rainAmt();
-  if (Math.abs(N - lastN) < 0.002 && Math.abs(RAIN - lastR) < 0.002 && flash <= 0) return;
-  lastN = N; lastR = RAIN;
+  RAIN = rainAmt() * (1 - SEASON.W);
+  SNOW = rainAmt(0.6) * SEASON.W;
+  const P2 = RAIN + SNOW;
+  if (Math.abs(N - lastN) < 0.002 && Math.abs(P2 - lastR) < 0.002 && flash <= 0) return;
+  lastN = N; lastR = P2;
   scene.background.copy(skyDay).lerp(skyNight, N);
   tmpC.copy(skyRain).lerp(skyRainNight, N);
   scene.background.lerp(tmpC, RAIN * 0.75);
+  tmpC.copy(skySnow).lerp(skyRainNight, N);
+  scene.background.lerp(tmpC, SNOW * 0.7);
   scene.fog.color.copy(scene.background);
-  scene.fog.far = lerp(120, 55, RAIN); scene.fog.near = lerp(45, 12, RAIN);
+  scene.fog.far = lerp(120, 55, Math.max(RAIN, SNOW * 0.8)); scene.fog.near = lerp(45, 12, Math.max(RAIN, SNOW * 0.8));
   sun.intensity = lerp(1.05, 0.14, N) * (1 - 0.55 * RAIN); sun.color.copy(sunDay).lerp(sunNight, N);
   hemi.intensity = lerp(0.85, 0.3, N) * (1 - 0.25 * RAIN) + flash * 2.2;
   stars.material.opacity = N; stars.visible = N > 0.01;
@@ -285,19 +307,20 @@ function updateSky() {
 
 // ---------- terrain ----------
 const POND = { x: -18, z: 16, r: 6.5 };
-const APPLE_TREE = { x: 0, z: -12 };
+const GREAT_OAK = { x: 0, z: -12 };
 const WORLD_R = 56;
 function smooth01(e0, e1, x) { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); }
 function terrainH(x, z) {
   let h = 0.8 * Math.sin(x * 0.07) * Math.cos(z * 0.06) + 0.35 * Math.sin(x * 0.17 + z * 0.11) + 0.2 * Math.cos(z * 0.21 - x * 0.05);
   const dp = Math.hypot(x - POND.x, z - POND.z);
-  const da = Math.hypot(x - APPLE_TREE.x, z - APPLE_TREE.z);
+  const da = Math.hypot(x - GREAT_OAK.x, z - GREAT_OAK.z);
   h *= smooth01(POND.r, POND.r + 6, dp) * (0.3 + 0.7 * smooth01(4, 12, da));
   if (dp < POND.r + 1) h -= 0.7 * (1 - smooth01(POND.r - 2, POND.r + 1, dp));
   const edge = Math.hypot(x, z);
   h += smooth01(WORLD_R, WORLD_R + 25, edge) * 5;
   return h;
 }
+let groundGeo = null, groundBase = null, grassMesh = null, flowerMesh = null, waterMesh = null;
 {
   const size = 200, seg = 120;
   const g = new THREE.PlaneGeometry(size, size, seg, seg);
@@ -314,11 +337,12 @@ function terrainH(x, z) {
     cols.push(tmp.r, tmp.g, tmp.b);
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  groundGeo = g; groundBase = Float32Array.from(cols);
   g.computeVertexNormals();
   const ground = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
   ground.receiveShadow = true;
   scene.add(ground);
-  const water = new THREE.Mesh(new THREE.CircleGeometry(POND.r + 0.3, 40), M.water);
+  const water = waterMesh = new THREE.Mesh(new THREE.CircleGeometry(POND.r + 0.3, 40), M.water);
   water.rotation.x = -Math.PI / 2; water.position.set(POND.x, -0.25, POND.z);
   scene.add(water);
 }
@@ -326,10 +350,12 @@ function terrainH(x, z) {
 // ---------- world collision data ----------
 // colliders: solid cylinders you can stand on top of. thin = pads you can pass under/through from below.
 const colliders = [];
+let FROZEN = false;
 const climbables = [];
 const leafGroups = [];
 function groundAt(x, z, y) {
   let g = terrainH(x, z);
+  if (FROZEN && (x - POND.x) ** 2 + (z - POND.z) ** 2 < (POND.r + 0.2) ** 2) g = Math.max(g, -0.22);
   for (const c of colliders) {
     if (c.top > g && c.top <= y + 0.4 && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r) g = c.top;
   }
@@ -337,7 +363,7 @@ function groundAt(x, z, y) {
 }
 function pushOut(p, y, pr) {
   for (const c of colliders) {
-    if (c.thin || y >= c.top - 0.35) continue;
+    if (c.thin || y >= c.top - 0.35 || (FROZEN && c.kind === 'water')) continue;
     const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz), m = c.r + pr;
     if (d < m && d > 1e-4) { p.x = c.x + dx / d * m; p.z = c.z + dz / d * m; }
   }
@@ -350,7 +376,7 @@ colliders.push({ x: POND.x, z: POND.z, r: POND.r - 0.4, top: 999, kind: 'water' 
 function leafBlob(r, m) { const g = new THREE.IcosahedronGeometry(r, 1); const mesh = new THREE.Mesh(g, m); mesh.castShadow = true; return mesh; }
 
 function makeOak(x, z, kind = 'oak') {
-  const big = kind === 'apple', giant = kind === 'giant';
+  const big = kind === 'great', giant = kind === 'giant';
   const base = terrainH(x, z);
   const trunkR = big ? 0.75 : giant ? 1.05 : 0.55, H = big ? 5.5 : giant ? rnd(11.5, 13.5) : rnd(6, 7.5), padR = big ? 3.5 : giant ? 4.2 : 2.8;
   const top = base + H;
@@ -390,7 +416,7 @@ function makeOak(x, z, kind = 'oak') {
   const crown = leafBlob(big ? 2.3 : giant ? 3.1 : 1.8, lm); crown.position.y = H + (big ? 4.4 : giant ? 5.6 : 3.5); crown.scale.y = .8; grp.add(crown);
   colliders.push({ x, z, r: trunkR, top, kind: 'trunk' });
   colliders.push({ x, z, r: padR, top, thin: true, kind: 'pad' });
-  const t = { x, z, r: trunkR, base, top, padR, platform: true, name: big ? 'the apple tree' : giant ? 'a giant oak' : 'an oak', H, trunkR, grp, lm, fade: 1, pads: [{ x, z, r: padR, y: top }] };
+  const t = { x, z, r: trunkR, base, top, padR, platform: true, name: big ? 'the great oak' : giant ? 'a giant oak' : 'an oak', H, trunkR, grp, lm, fade: 1, pads: [{ x, z, r: padR, y: top }] };
   climbables.push(t); leafGroups.push(t);
   return t;
 }
@@ -409,10 +435,10 @@ function makePine(x, z, climbable = true) {
   }
 }
 
-const appleTree = makeOak(APPLE_TREE.x, APPLE_TREE.z, 'apple');
-// extra jump-up pads in the apple tree
+const greatOak = makeOak(GREAT_OAK.x, GREAT_OAK.z, 'great');
+// extra jump-up pads in the great oak
 {
-  const t = appleTree, extras = [
+  const t = greatOak, extras = [
     { dx: 1.9, dz: 1.2, dy: 1.3, r: 1.35 },
     { dx: -1.9, dz: -0.8, dy: 1.3, r: 1.35 },
     { dx: 0.6, dz: -2.0, dy: 2.5, r: 1.15 },
@@ -502,6 +528,28 @@ function updateRain(dt) {
   rainGeo.attributes.position.needsUpdate = true;
 }
 
+// snow: slow drifting flakes in a box around the camera
+const SNOW_N = 1500;
+const snowGeo = new THREE.BufferGeometry(), snowPos = new Float32Array(SNOW_N * 3), snowSeed = new Float32Array(SNOW_N);
+for (let i = 0; i < SNOW_N; i++) { snowPos.set([rnd(-22, 22), rnd(0, 22), rnd(-22, 22)], i * 3); snowSeed[i] = rnd(0, 6.28); }
+snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.14, transparent: true, opacity: 0.9 }));
+snow.frustumCulled = false; snow.visible = false; scene.add(snow);
+function updateSnow(dt, t) {
+  snow.visible = SNOW > 0.01;
+  if (!snow.visible) return;
+  snow.position.set(camera.position.x, camera.position.y - 8, camera.position.z);
+  const n = Math.floor(SNOW_N * SNOW);
+  for (let i = 0; i < n; i++) {
+    const k = i * 3; let y = snowPos[k + 1] - (1.6 + (snowSeed[i] % 1)) * dt;
+    snowPos[k] += Math.sin(t * 0.8 + snowSeed[i]) * 0.4 * dt; snowPos[k + 2] += Math.cos(t * 0.6 + snowSeed[i]) * 0.3 * dt;
+    if (y < 0) { y += 22; snowPos[k] = rnd(-22, 22); snowPos[k + 2] = rnd(-22, 22); }
+    snowPos[k + 1] = y;
+  }
+  snowGeo.setDrawRange(0, n);
+  snowGeo.attributes.position.needsUpdate = true;
+}
+
 // big bushes you can jump into and hide in
 const hideBushes = [];
 function makeHideBush(x, z) {
@@ -518,7 +566,7 @@ for (const [x, z] of [[-4, 9], [10, 10], [-10, -12], [8, -6]]) makeHideBush(x, z
 for (let i = 0, made = 0; i < 200 && made < 12; i++) {
   const a = srnd(0, Math.PI * 2), r = srnd(10, 50), x = Math.cos(a) * r, z = Math.sin(a) * r;
   if (colliders.some(c => Math.hypot(c.x - x, c.z - z) < c.r + 2.5) || hideBushes.some(b => Math.hypot(b.x - x, b.z - z) < 8)) continue;
-  if (Math.hypot(x - 5, z - 3) < 4 || Math.hypot(x - APPLE_TREE.x, z - APPLE_TREE.z) < 6) continue;
+  if (Math.hypot(x - 5, z - 3) < 4 || Math.hypot(x - GREAT_OAK.x, z - GREAT_OAK.z) < 6) continue;
   makeHideBush(x, z); made++;
 }
 function bushAt(x, y, z) {
@@ -558,6 +606,7 @@ for (let i = 0; i < 40; i++) {
   }
   flowers.count = fi;
   scene.add(grass, flowers);
+  grassMesh = grass; flowerMesh = flowers;
 }
 
 // ---------- stash log ----------
@@ -670,42 +719,24 @@ function animSquirrel(s, pose, speed, dt, t) {
   }
 }
 
-// ---------- apples ----------
-const apples = [];
-function makeApple(x, y, z, onTree) {
-  const g = new THREE.Group();
-  const a = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), M.apple); a.scale.y = 0.9; g.add(a);
-  const st = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.14, 4), M.stem); st.position.y = 0.22; g.add(st);
-  const lf = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 4), M.leafy); lf.scale.set(1.4, .3, .7); lf.position.set(0.07, 0.26, 0); g.add(lf);
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  g.position.set(x, y, z); scene.add(g);
-  apples.push({ g, x, y, z, taken: false, onTree, bob: Math.random() * 6 });
-}
-{
-  const t = appleTree;
-  const P0 = t.pads[0];
-  for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2 + 0.4, r = P0.r * 0.72; makeApple(P0.x + Math.sin(a) * r, P0.y + 0.45, P0.z + Math.cos(a) * r, true); }
-  for (let k = 1; k < t.pads.length; k++) {
-    const p = t.pads[k], n = k === 3 ? 4 : 3;
-    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, r = p.r * 0.55; makeApple(p.x + Math.sin(a) * r, p.y + 0.45, p.z + Math.cos(a) * r, true); }
-  }
-  // a few windfalls on the ground
-  for (const [dx, dz] of [[3.8, 2.5], [-4.2, 1.2], [1.0, 4.4]]) { const x = t.x + dx, z = t.z + dz; makeApple(x, terrainH(x, z) + 0.2, z, false); }
-}
-const TOTAL_APPLES = apples.length;
 
 // ---------- acorns ----------
 const acorns = [];
 const MAX_ACORNS = 22;
-function spawnAcorn(x, z, golden = false) {
+function spawnAcorn(x, z, golden = false, atY = null) {
   const g = acornMesh(golden ? 1.4 : 1);
   if (golden) g.traverse(o => { if (o.isMesh) o.material = M.gold; });
-  const y = groundAt(x, z, terrainH(x, z) + 0.1);
+  const y = atY !== null ? atY : groundAt(x, z, terrainH(x, z) + 0.1);
   g.position.set(x, y + 0.2, z); g.rotation.set(0.3, rnd(0, 6), 0.2); scene.add(g);
   const a = { g, x, y: y + 0.2, z, taken: false, golden, claimed: null };
   acorns.push(a); return a;
 }
+function spawnAcornInGreatOak() {
+  const p = pick(greatOak.pads), a = rnd(0, Math.PI * 2), r = rnd(0.9, p.r * 0.7);
+  return spawnAcorn(p.x + Math.sin(a) * r, p.z + Math.cos(a) * r, false, p.y);
+}
 function spawnAcornUnderOak() {
+  if (Math.random() < 0.2) return spawnAcornInGreatOak();
   for (let k = 0; k < 10; k++) {
     const o = pick(oaks), a = rnd(0, Math.PI * 2), r = rnd(1.4, 5.5), x = o.x + Math.sin(a) * r, z = o.z + Math.cos(a) * r;
     if (colliders.some(c => !c.thin && c.kind !== 'trunk' && Math.hypot(c.x - x, c.z - z) < c.r + 0.4)) continue;
@@ -713,12 +744,13 @@ function spawnAcornUnderOak() {
     return spawnAcorn(x, z);
   }
 }
-for (let i = 0; i < 18; i++) spawnAcornUnderOak();
+for (let i = 0; i < 16; i++) spawnAcornUnderOak();
+for (let i = 0; i < 6; i++) spawnAcornInGreatOak();
 
 // ---------- player ----------
 const P = {
   pos: new THREE.Vector3(0, 0, 5), vx: 0, vz: 0, vy: 0, onGround: true, yaw: Math.PI,
-  climb: null, theta: 0, cheeks: 0, apples: 0, stashed: 0, idle: 0, speed: 0, sprint: false, done: false,
+  climb: null, theta: 0, cheeks: 0, stashed: 0, food: 10, idle: 0, speed: 0, sprint: false, done: false,
 };
 const CHEEK_MAX = 5, STASH_GOAL = 20;
 P.pos.y = terrainH(P.pos.x, P.pos.z);
@@ -749,10 +781,10 @@ FURS.forEach((f, i) => {
 
 // ---------- NPC squirrels ----------
 const NPC_DEFS = [
-  { name: 'Hazel', fur: 0xa9542a, belly: 0xf1d8b8, tail: 0xbe6a36, lines: [["Oh! Hello. You're new round here.", "The apple tree? Climb the trunk and hop between the leafy bits."], ["Nice to see you again!", "Maple and I share the burrow in the giant oak. It's cosy."], ["Best friends! Share the apples, yes?"]] },
+  { name: 'Hazel', fur: 0xa9542a, belly: 0xf1d8b8, tail: 0xbe6a36, lines: [["Oh! Hello. You're new round here.", "The great oak? Climb the trunk and hop between the leafy bits. Acorns up top!"], ["Nice to see you again!", "Maple and I share the burrow in the giant oak. It's cosy."], ["Best friends! We can share a stash, yes?"]] },
   { name: 'Pip', fur: 0x8d8983, belly: 0xe9e4dc, tail: 0xa29d96, lines: [["Tag! No? Fine.", "I'm FAST. Watch me."], ["Race you up the oak!", "Juniper snores. Don't tell her I said that."], ["You're alright, you are."]] },
   { name: 'Conker', fur: 0x6b3d22, belly: 0xd9b996, tail: 0x7d4a2a, lines: [["Hmph. Mind the log, that's yours.", "Winter's long. Stash more than you think."], ["Five in the cheeks, that's the most anyone can carry.", "Pines are for looking out, oaks are for acorns."], ["Here, I'll keep an eye on your stash."]] },
-  { name: 'Maple', fur: 0xc0703a, belly: 0xf6e3c8, tail: 0xd98848, lines: [["The view from the top of the apple tree is lovely.", "Have you tried just sitting still? Everyone comes to look."], ["You smell like apples!", "I like watching the pond."], ["Friends forever. Probably."]] },
+  { name: 'Maple', fur: 0xc0703a, belly: 0xf6e3c8, tail: 0xd98848, lines: [["The view from the top of the great oak is lovely.", "Have you tried just sitting still? Everyone comes to look."], ["You smell like acorns!", "I like watching the pond."], ["Friends forever. Probably."]] },
   { name: 'Bramble', fur: 0x5f5a54, belly: 0xcfc8bd, tail: 0x716b64, lines: [["...", "Oh. Hi. I'm shy."], ["You can sit with me if you want.", "There's an empty burrow in one of the giant oaks. Bring a friend."], ["I'm glad you came to Derv."]] },
   { name: 'Juniper', fur: 0x9a4b24, belly: 0xefcfad, tail: 0xb05a2c, lines: [["Chk-chk-chk! That's hello.", "I bury acorns everywhere and find about half."], ["Got an acorn for me? I won't tell.", "Pip always cheats at tag."], ["You're my favourite squirrel. Don't tell Pip."]] },
 ];
@@ -791,7 +823,8 @@ function nearestClimbable(x, z, maxD) {
 function decide(n) {
   const r = Math.random();
   const dPlayer = Math.hypot(P.pos.x - n.x, P.pos.z - n.z);
-  if (n.home && (isNight() || isRaining())) return goHome(n);
+  if (n.home && (isNight() || isStormy())) return goHome(n);
+  if (n.home && SEASON.W > 0.5 && Math.random() < 0.35) return goHome(n, rnd(15, 30));
   if (n.followT > 0) return setState(n, 'follow');
   if (n.home && Math.random() < 0.07) return goHome(n, rnd(12, 22));
   if (P.idle > 4 && !P.hiddenIn && dPlayer < 16 && n.curiousCool <= 0 && !P.climb && Math.random() < 0.5) { n.curiousCool = rnd(15, 30); return setState(n, 'curious', rnd(6, 10)); }
@@ -827,7 +860,7 @@ function activityText(n) {
     case 'chat': return 'chattering with you';
     case 'home': {
       const mate = n.partner && inBurrow(n.partner) && n.partner.phase === 'sleep';
-      return n.phase === 'approach' ? (isNight() ? 'heading home to bed' : isRaining() ? 'running home out of the rain' : 'heading home for a nap') : n.phase === 'up' ? 'climbing up to the burrow'
+      return n.phase === 'approach' ? (isNight() ? 'heading home to bed' : isRaining() ? 'running home out of the rain' : SNOW > 0.5 ? 'hurrying home out of the snow' : 'heading home for a nap') : n.phase === 'up' ? 'climbing up to the burrow'
         : n.phase === 'bed' ? 'settling into the burrow' : n.phase === 'sleep' ? (mate ? `curled up asleep next to ${n.partner.name}` : 'curled up asleep') : 'waking up and heading out';
     }
     default: return 'thinking';
@@ -837,7 +870,7 @@ function updateNPC(n, dt, t) {
   n.speed = 0; n.t -= dt; n.curiousCool -= dt;
   if (n.followT > 0) n.followT -= dt;
   let pose = 'idle', onTrunk = false, fixed = false;
-  if (n.home && n.state !== 'home' && (isNight() || RAIN > 0.5) && !(n.state === 'climb' && n.phase !== 'approach')) goHome(n);
+  if (n.home && n.state !== 'home' && (isNight() || RAIN > 0.5 || SNOW > 0.7) && !(n.state === 'climb' && n.phase !== 'approach')) goHome(n);
   const dP = Math.hypot(P.pos.x - n.x, P.pos.z - n.z);
   const grounded = !(n.state === 'climb' && n.phase !== 'approach') && !inBurrow(n);
   // startled by a sprinting stranger
@@ -914,7 +947,7 @@ function updateNPC(n, dt, t) {
         fixed = true; n.y = b.y; pose = 'sleep';
         const sp = b.slots[n.slot]; n.x = sp.x; n.z = sp.z; n.yaw = angDamp(n.yaw, sp.yaw, 4, dt);
         if (n.bubbleT < 0.5) say(n, 'Zzz', 3);
-        if (!isNight() && !isRaining() && n.t <= 0) { n.phase = 'leave'; n.bubble.hidden = true; n.bubbleT = 0; }
+        if (!isNight() && !isStormy() && n.t <= 0) { n.phase = 'leave'; n.bubble.hidden = true; n.bubbleT = 0; }
       } else if (n.phase === 'leave') {
         fixed = true; n.y = b.y; pose = 'walk';
         if (moveToward(n, bx, bz, 1.6, dt) < 0.08) { n.phase = 'down'; n.climbY = b.y; }
@@ -1093,11 +1126,11 @@ function updateAmbience(dt) {
   if (RAIN > 0.7) { thunderT -= dt; if (thunderT <= 0) { thunderT = rnd(12, 30); flash = 1; thunder(); } }
   if (!master) return;
   const sheltered = !!(P.sleep || P.hiddenIn);
-  rainGain.gain.setTargetAtTime(RAIN * 0.32, actx.currentTime, 0.4);
-  rainLP.frequency.setTargetAtTime(sheltered ? 1100 : 6000, actx.currentTime, 0.3);
+  rainGain.gain.setTargetAtTime(RAIN * 0.32 + SNOW * 0.14, actx.currentTime, 0.4);
+  rainLP.frequency.setTargetAtTime(sheltered ? 900 : RAIN > SNOW ? 6000 : 700, actx.currentTime, 0.3);
   const night = isNight();
-  if (!night && RAIN < 0.2) { birdT -= dt; if (birdT <= 0) { birdT = rnd(2.5, 7); tweet(); } }
-  if (night && RAIN < 0.2) { cricketT -= dt; if (cricketT <= 0) { cricketT = rnd(0.5, 1.4); cricket(); } }
+  if (!night && RAIN < 0.2 && SEASON.W < 0.5) { birdT -= dt; if (birdT <= 0) { birdT = rnd(2.5, 7); tweet(); } }
+  if (night && RAIN < 0.2 && SEASON.W < 0.5) { cricketT -= dt; if (cricketT <= 0) { cricketT = rnd(0.5, 1.4); cricket(); } }
 }
 function rustle(b, amt = 1) {
   b.wob = Math.max(b.wob, amt);
@@ -1119,15 +1152,16 @@ $('sndWaves').toggleAttribute('hidden', muted); $('sndX').toggleAttribute('hidde
 let toastT = 0;
 function toast(msg, secs = 2.4) { const el = $('toast'); el.textContent = msg; el.style.opacity = 1; toastT = secs; }
 function hud() {
-  $('nApples').textContent = `${P.apples}/${TOTAL_APPLES}`;
+  $('nFood').textContent = `${Math.ceil(P.food)}/10`;
+  $('chipFood').hidden = !(SEASON.W > 0.5);
   $('nCheeks').textContent = `${P.cheeks}/${CHEEK_MAX}`;
   $('nStash').textContent = `${P.stashed}/${STASH_GOAL}`;
   $('chipCheeks').classList.toggle('full', P.cheeks >= CHEEK_MAX);
   player.cheeks.forEach(c => c.scale.setScalar(0.01 + P.cheeks / CHEEK_MAX));
 }
 function checkWin() {
-  if (!P.done && P.apples >= TOTAL_APPLES && P.stashed >= STASH_GOAL) {
-    P.done = true; toast('Ready for winter! Derv is proud of you.', 6); chirp(2200, 6, .06);
+  if (!P.done && P.stashed >= STASH_GOAL && SEASON.W < 0.5) {
+    P.done = true; toast('Your stash is full. You\'re ready for winter!', 5); chirp(2200, 6, .06);
     npcs.forEach(n => say(n, pick(['Hooray!', 'Chk-chk-chk!', 'Well done!', 'Winter, bring it on!']), 4));
   }
 }
@@ -1185,7 +1219,8 @@ function updatePlayer(dt, t) {
       player.root.position.copy(P.pos); player.root.rotation.y = P.yaw; P.pose = 'sleep';
       animSquirrel(player, 'sleep', 0, dt, t);
       if (playerBubbleT < 0.5) sayPlayer('Zzz');
-      setPrompt(isTouch ? 'Sleeping. Move to wake up' : 'Sleeping. Press a move key to wake up');
+      const waitNote = isNight() && !skipping && MP.remotes.size ? ' The night skips once everyone is asleep.' : '';
+      setPrompt((isTouch ? 'Sleeping. Move to wake up.' : 'Sleeping. Press a move key to wake up.') + waitNote);
       if (isTouch) { $('tAct').textContent = 'Wake'; $('tGive').hidden = true; }
       input.act = input.give = false;
       return;
@@ -1221,7 +1256,7 @@ function updatePlayer(dt, t) {
     const Fx = Math.sin(cam.yaw), Fz = Math.cos(cam.yaw), Rx = -Math.cos(cam.yaw), Rz = Math.sin(cam.yaw);
     let mx = Fx * mv.f + Rx * mv.s, mz = Fz * mv.f + Rz * mv.s;
     const ml = Math.hypot(mx, mz);
-    const top = (mv.sprint ? 9 : 5.2) * mv.mag;
+    const top = (mv.sprint ? 9 : 5.2) * mv.mag * (SEASON.W > 0.5 && P.food <= 0 ? 0.6 : 1);
     if (ml > 0.01) { mx /= ml; mz /= ml; }
     const k = P.onGround ? 14 : 4;
     P.vx = damp(P.vx, mx * top, k, dt); P.vz = damp(P.vz, mz * top, k, dt);
@@ -1261,16 +1296,6 @@ function updatePlayer(dt, t) {
   } else if (bush && P.speed > 1) bush.wob = Math.max(bush.wob, 0.35);
   player.root.visible = true;
 
-  // pick up apples
-  for (const a of apples) {
-    if (a.taken) continue;
-    a.g.rotation.y += dt * 0.8;
-    a.g.position.y = a.y + (a.onTree ? Math.sin(t * 2 + a.bob) * 0.05 : 0);
-    if (tmpV.set(a.x, a.y, a.z).distanceTo(P.pos) < 0.9) {
-      a.taken = true; scene.remove(a.g); P.apples++; pop(700); hud();
-      toast(P.apples === TOTAL_APPLES ? 'Every apple picked!' : `Apple! ${TOTAL_APPLES - P.apples} left`, 1.6); checkWin();
-    }
-  }
   // pick up acorns
   let fullNear = false;
   for (const a of acorns) {
@@ -1325,6 +1350,9 @@ function updatePlayer(dt, t) {
       const n = P.cheeks; P.stashed += n; P.cheeks = 0; for (let i = 0; i < n; i++) addToPile();
       chirp(1500, 2, 0.04); toast(`Stashed ${n}! ${Math.max(0, STASH_GOAL - P.stashed)} to go`, 2); hud(); checkWin();
     }
+  } else if (dStash < 2.8 && SEASON.W > 0.5 && P.food < 9 && P.stashed > 0) {
+    prompt = `${K('E')}Eat an acorn from your stash (${P.stashed} left)`; actLabel = 'Eat';
+    if (input.act) { P.stashed--; P.food = Math.min(10, P.food + 3); const a = stashPile.pop(); if (a) stashGrp.remove(a); pop(400, .05); toast('Crunch. That hit the spot', 1.6); hud(); }
   } else if (npc) {
     prompt = `${K('E')}Chitter with ${npc.name}` + (P.cheeks > 0 ? ` &nbsp; ${K('G')}Give an acorn` : ''); actLabel = 'Chat'; canGive = P.cheeks > 0;
     if (input.act) {
@@ -1344,6 +1372,10 @@ function updatePlayer(dt, t) {
     }
   } else if (fullNear) prompt = 'Cheeks full. Take them to your hollow log';
   else if (P.climb) prompt = isTouch ? 'Push up to climb, sideways to circle. Jump to leap off' : `${K('W')}${K('S')}climb &nbsp;${K('A')}${K('D')}circle &nbsp;${K('Space')}leap off`;
+  else if (SEASON.W > 0.5 && P.food < 9 && P.cheeks > 0 && !P.climb) {
+    prompt = `${K('E')}Eat an acorn from your cheeks`; actLabel = 'Eat';
+    if (input.act) { P.cheeks--; P.food = Math.min(10, P.food + 3); pop(400, .05); hud(); }
+  }
   else if (P.hiddenIn) prompt = 'Hiding in a bush. Nobody can see you';
   else if (P.idle > 4 && !P.climb && npcs.some(n => n.state === 'curious')) prompt = 'Sit still... someone is coming to look at you';
   if (mate) mate.skip = false;
@@ -1381,7 +1413,7 @@ function updateCamera(dt, t) {
 // ---------- labels ----------
 const placeTags = [
   { el: null, x: STASH.x, z: STASH.z, y: () => terrainH(STASH.x, STASH.z) + 2.4, text: 'Your stash', show: () => P.cheeks > 0 || Math.hypot(P.pos.x - STASH.x, P.pos.z - STASH.z) < 14 },
-  { el: null, x: APPLE_TREE.x, z: APPLE_TREE.z, y: () => appleTree.top + 5.5, text: 'Apple tree', show: () => P.apples < TOTAL_APPLES && Math.hypot(P.pos.x - APPLE_TREE.x, P.pos.z - APPLE_TREE.z) > 6 },
+  { el: null, x: GREAT_OAK.x, z: GREAT_OAK.z, y: () => greatOak.top + 5.5, text: 'The great oak', show: () => { const d = Math.hypot(P.pos.x - GREAT_OAK.x, P.pos.z - GREAT_OAK.z); return d > 8 && d < 30; } },
 ];
 burrows.forEach(b => placeTags.push({ el: null, x: b.cx, z: b.cz, y: () => b.y + 2.7, text: '',
   label: () => b.owners.length ? `${b.owners[0].name} & ${b.owners[1].name}'s burrow` : (b.used ? 'Your burrow' : 'Empty burrow'),
@@ -1428,7 +1460,7 @@ function updateLeaves(dt) {
 }
 
 // ---------- multiplayer (live room of everyone with the page open) ----------
-const CHITTERS = ['Chk-chk-chk!', 'Hi friend!', 'Race you to the apple tree!', 'Follow me!', 'Found any acorns?', 'Watch this!', 'Nice tail!', 'Winter is coming, you know.'];
+const CHITTERS = ['Chk-chk-chk!', 'Hi friend!', 'Race you to the great oak!', 'Follow me!', 'Found any acorns?', 'Watch this!', 'Nice tail!', 'Winter is coming, you know.'];
 const MP = { status: 'none', mode: 'none', nick: '', beat: 0, room: null, user: null, myPeer: null, remotes: new Map(), say: null, sayN: 0, gift: null, giftN: 0, lastSent: '', sendT: 0, nameT: 0 };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const num = (v, lo, hi, d = 0) => (typeof v === 'number' && isFinite(v)) ? clamp(v, lo, hi) : d;
@@ -1480,6 +1512,8 @@ function syncPeers(peers) {
     if (!r.by && nick !== r.nick) { r.nick = nick; r.name = nick || 'A squirrel'; r.tag.textContent = r.name; }
     r.tx = num(pr.x, -80, 80); r.ty = num(pr.y, -5, 40); r.tz = num(pr.z, -80, 80); r.tyaw = num(pr.yaw, -1e3, 1e3);
     r.pose = POSES.includes(pr.pose) ? pr.pose : 'idle'; r.sp = num(pr.sp, 0, 12); r.hid = pr.hid === 1;
+    const toff = num(pr.toff, 0, 1e8) * 1000;
+    if (toff > CLOCK.off + 1500) CLOCK.off = toff;
     if (r.fresh) { r.x = r.tx; r.y = r.ty; r.z = r.tz; r.yaw = r.tyaw; }
     const say = pr.say && typeof pr.say === 'object' ? pr.say : null;
     if (say && say.n !== r.sayN) {
@@ -1547,7 +1581,7 @@ function updateMultiplayer(dt) {
   if (MP.sendT < 0.1) return;
   MP.sendT = 0;
   const pr = { x: +P.pos.x.toFixed(2), y: +P.pos.y.toFixed(2), z: +P.pos.z.toFixed(2), yaw: +P.yaw.toFixed(2), pose: P.pose || 'idle', sp: +P.speed.toFixed(1), fur: furIdx, hid: P.hiddenIn ? 1 : 0,
-    say: MP.say, gift: MP.gift, nick: MP.nick || undefined };
+    say: MP.say, gift: MP.gift, nick: MP.nick || undefined, toff: Math.round(CLOCK.off / 1000) };
   const js = JSON.stringify(pr);
   MP.beat += 0.1;
   if (js === MP.lastSent && !(MP.mode === 'peer' && MP.beat > 5)) return;
@@ -1682,8 +1716,79 @@ function updateClock() {
   $('nTime').textContent = (night ? 'Night' : 'Day') + (isRaining() ? ', raining' : '');
   $('nTimeSub').textContent = (night ? 'morning in ' : 'night in ') + m + ':' + String(sec).padStart(2, '0');
   $('icoSun').toggleAttribute('hidden', night); $('icoMoon').toggleAttribute('hidden', !night);
+  updateSeasonChip();
 }
 let clockT = 0;
+
+// ---------- seasons: recolour leaves, grass and ground, freeze the pond ----------
+const AUTUMN_LEAVES = [0xd9822b, 0xc9502a, 0xe0a83a, 0xb8642a, 0x9a8a2e].map(c => new THREE.Color(c));
+const SNOWY = new THREE.Color(0xeef3f6), AUTUMN_GROUND = new THREE.Color(0x9c8a4a), GRASS_GREEN = new THREE.Color(0x5b953b), GRASS_DRY = new THREE.Color(0xa68f4a);
+const PINE_GREEN = M.pine.color.clone(), BUSH_GREEN = M.bush.color.clone(), MOSS_GREEN = M.leafy.color.clone(), WATER_BLUE = M.water.color.clone(), ICE = new THREE.Color(0xcfe2ec);
+let seasonLast = { A: -1, W: -1 };
+function applySeason() {
+  const { A, W } = SEASON;
+  if (Math.abs(A - seasonLast.A) < 0.01 && Math.abs(W - seasonLast.W) < 0.01) return;
+  seasonLast = { A, W };
+  leafGroups.forEach((t, i) => {
+    const u = t.lm.userData;
+    if (!u.base) { u.base = t.lm.color.clone(); u.aut = AUTUMN_LEAVES[i % AUTUMN_LEAVES.length]; }
+    t.lm.color.copy(u.base).lerp(u.aut, A * 0.9).lerp(SNOWY, W * 0.75);
+  });
+  hideBushes.forEach((b, i) => {
+    const u = b.m.userData;
+    if (!u.base) { u.base = b.m.color.clone(); u.aut = AUTUMN_LEAVES[(i + 2) % AUTUMN_LEAVES.length]; }
+    b.m.color.copy(u.base).lerp(u.aut, A * 0.45).lerp(SNOWY, W * 0.6);
+  });
+  M.pine.color.copy(PINE_GREEN).lerp(SNOWY, W * 0.45);
+  M.leafy.color.copy(MOSS_GREEN).lerp(AUTUMN_LEAVES[2], A * 0.4).lerp(SNOWY, W * 0.7);
+  M.bush.color.copy(BUSH_GREEN).lerp(AUTUMN_LEAVES[3], A * 0.4).lerp(SNOWY, W * 0.6);
+  grassMesh.material.color.copy(GRASS_GREEN).lerp(GRASS_DRY, A * 0.6).lerp(SNOWY, W);
+  grassMesh.visible = W < 0.85; flowerMesh.visible = A < 0.5;
+  FROZEN = W > 0.6;
+  M.water.color.copy(WATER_BLUE).lerp(ICE, W); M.water.opacity = lerp(0.85, 0.97, W); M.water.roughness = lerp(0.2, 0.5, W);
+  const cols = groundGeo.attributes.color.array, ag = AUTUMN_GROUND, sw = SNOWY, ka = A * 0.3, kw = W * 0.88;
+  for (let i = 0; i < cols.length; i += 3) {
+    let r = groundBase[i], g = groundBase[i + 1], b = groundBase[i + 2];
+    r += (ag.r - r) * ka; g += (ag.g - g) * ka; b += (ag.b - b) * ka;
+    r += (sw.r - r) * kw; g += (sw.g - g) * kw; b += (sw.b - b) * kw;
+    cols[i] = r; cols[i + 1] = g; cols[i + 2] = b;
+  }
+  groundGeo.attributes.color.needsUpdate = true;
+}
+let seasonName = SEASON.name, starveT = 0, skipping = false;
+function updateSeason(dt) {
+  SEASON = seasonInfo();
+  applySeason();
+  const winter = SEASON.W > 0.5;
+  if (SEASON.name !== seasonName) {
+    const prev = seasonName; seasonName = SEASON.name;
+    if (started && SEASON.name === 'Winter') {
+      if (P.stashed >= STASH_GOAL) { toast(`Winter is here! Your stash has ${P.stashed} acorns. Make them last`, 6); chirp(2200, 5, .05); }
+      else toast(`Winter is here, and you only stashed ${P.stashed}. No new acorns until spring`, 6);
+    } else if (started && SEASON.name === 'Spring' && prev === 'Winter') { toast('Spring! You made it through winter', 5); chirp(2600, 6, .05); P.food = 10; }
+    else if (started && SEASON.name === 'Autumn') { toast('Autumn again. Time to fill your stash before winter', 5); P.done = false; }
+    hud();
+  }
+  if (started && winter && !P.sleep) {
+    const before = Math.ceil(P.food);
+    P.food = Math.max(0, P.food - dt / 15);
+    if (Math.ceil(P.food) !== before) hud();
+    if (P.food <= 0) { starveT -= dt; if (starveT <= 0) { starveT = 25; toast('You\'re starving! Eat an acorn from your stash or your cheeks', 3.5); } }
+  }
+  // skip the night when everyone in the game is asleep
+  const allAsleep = !!P.sleep && [...MP.remotes.values()].every(r => r.pose === 'sleep');
+  const wasSkipping = skipping;
+  skipping = started && allAsleep && isNight();
+  if (skipping) CLOCK.off += dt * 1000 * 29;
+  if (skipping && !wasSkipping) toast(MP.remotes.size ? 'Everyone\'s asleep. Skipping to morning...' : 'Sleeping through the night...', 2.5);
+  if (!skipping && wasSkipping && !isNight()) toast('Good morning!', 2.5);
+}
+function updateSeasonChip() {
+  const S = SEASON, days = Math.ceil(S.untilNext);
+  $('nSeason').textContent = S.name + (SNOW > 0.3 ? ', snowing' : '');
+  $('nSeasonSub').textContent = S.next === 'autumn' ? 'autumn tomorrow' : `${S.next} in ${days} day${days === 1 ? '' : 's'}`;
+  $('icoSeason').setAttribute('fill', S.name === 'Winter' ? '#e6eef4' : S.name === 'Spring' ? '#7cb850' : '#d9822b');
+}
 
 // ---------- main loop ----------
 let started = false, now = 0, acornTimer = 0, last = performance.now();
@@ -1693,7 +1798,7 @@ function frame(ms) {
     updatePlayer(dt, now);
     for (const n of npcs) updateNPC(n, dt, now);
     acornTimer += dt;
-    if (acornTimer > 4) { acornTimer = 0; if (acorns.filter(a => !a.taken).length < MAX_ACORNS) spawnAcornUnderOak(); }
+    if (acornTimer > 4) { acornTimer = 0; if (SEASON.W < 0.5 && acorns.filter(a => !a.taken).length < MAX_ACORNS) spawnAcornUnderOak(); }
     for (let i = acorns.length - 1; i >= 0; i--) if (acorns[i].taken) acorns.splice(i, 1);
     if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
   } else {
@@ -1704,7 +1809,9 @@ function frame(ms) {
   }
   updateMultiplayer(dt);
   updateSky();
+  updateSeason(dt);
   updateRain(dt);
+  updateSnow(dt, now);
   updateBushes(dt, now);
   updateAmbience(dt);
   clockT -= dt; if (clockT <= 0) { clockT = 0.5; updateClock(); }
@@ -1731,6 +1838,6 @@ $('btnStart').addEventListener('click', beginGame);
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 // test hook
-window.__game = { P, MP, burrows, goHome, hideBushes, npcs, apples, acorns, climbables, keys, input, cam, get watch() { return watch; } };
+window.__game = { P, MP, CLOCK, burrows, goHome, hideBushes, npcs, acorns, seasonInfo, get SEASON() { return SEASON; }, climbables, keys, input, cam, get watch() { return watch; } };
 })();
 </script>
